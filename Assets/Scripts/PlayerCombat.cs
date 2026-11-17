@@ -189,6 +189,12 @@ public class PlayerCombat : MonoBehaviour
 
     private void HandleInput()
     {
+        // Jeśli kliknięto w UI (np. przycisk restartu na ekranie Game Over), nie atakuj
+        if (UnityEngine.EventSystems.EventSystem.current != null && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
+        {
+            return;
+        }
+
         bool attackPressed = false;
 
 #if ENABLE_INPUT_SYSTEM
@@ -314,7 +320,21 @@ public class PlayerCombat : MonoBehaviour
             Vector2 mouseScreenPos = GetMouseScreenPosition();
             Ray ray = mainCamera.ScreenPointToRay(mouseScreenPos);
 
-            // Płaszczyzna XZ na wysokości stóp gracza
+            // 1. Sprawdź czy kursor myszy bezpośrednio wskazuje na wroga/obiekt do zaatakowania
+            if (Physics.Raycast(ray, out RaycastHit hitInfo, 100f, damageableLayers))
+            {
+                if (hitInfo.collider.transform.root != transform.root)
+                {
+                    Vector3 toEnemy = hitInfo.collider.bounds.center - transform.position;
+                    toEnemy.y = 0f;
+                    if (toEnemy.sqrMagnitude > 0.04f)
+                    {
+                        return toEnemy.normalized;
+                    }
+                }
+            }
+
+            // 2. Rzutowanie promienia na płaszczyznę podłoża XZ na wysokości gracza
             Plane groundPlane = new Plane(Vector3.up, new Vector3(0f, transform.position.y, 0f));
 
             if (groundPlane.Raycast(ray, out float enterDistance))

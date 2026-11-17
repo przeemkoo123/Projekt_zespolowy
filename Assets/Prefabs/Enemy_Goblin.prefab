@@ -93,7 +93,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyAI
   currentState: 0
-  maxHealth: 50
+  maxHealth: 75
   patrolRadius: 8
   patrolSpeed: 2.2
   idleWaitDuration: 2.5
@@ -109,8 +109,7 @@ MonoBehaviour:
   attackCooldown: 1.2
   staggerDuration: 0.35
   spriteRenderer: {fileID: 3034876415505684432}
-  telegraphColor: {r: 1, g: 0.35, b: 0.2, a: 1}
-  hitFlashColor: {r: 1, g: 1, b: 1, a: 1}
+  hitFlashColor: {r: 1, g: 0.25, b: 0.25, a: 1}
   invertFlip: 0
   lootPrefabs: []
   dropChance: 0.75

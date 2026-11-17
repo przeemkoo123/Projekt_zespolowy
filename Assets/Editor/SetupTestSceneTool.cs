@@ -29,6 +29,7 @@ public static class SetupTestSceneTool
     private const string PlayerPrefabPath = "Assets/Prefabs/Player_Placeholder.prefab";
     private const string ResourcesPlayerPrefabPath = "Assets/Resources/Player_Placeholder.prefab";
     private const string EnemyPrefabPath = "Assets/Prefabs/Enemy_Goblin.prefab";
+    private const string ResourcesEnemyPrefabPath = "Assets/Resources/Enemy_Goblin.prefab";
     private const string ChestPrefabPath = "Assets/Prefabs/Chest_Reward.prefab";
 
     // Materiały
@@ -77,16 +78,16 @@ public static class SetupTestSceneTool
         }
 
         GameObject player = GameObject.FindGameObjectWithTag("Player");
-        GameObject arena = GameObject.Find("Arena_Environment");
+        GameObject dungeon = GameObject.Find("DungeonManager");
 
-        if (player == null && arena != null)
+        if (player == null && dungeon != null)
         {
             Debug.Log("<b>[Combat Arena]</b> Wykryto brak gracza na scenie – dodawanie postaci gracza...");
             SpawnOrReconnectPlayer();
         }
-        else if (player == null || arena == null)
+        else if (player == null || dungeon == null)
         {
-            Debug.Log("<b>[Combat Arena]</b> Scena nie jest w pełni skonfigurowana. Budowanie kompletnej sceny testowej...");
+            Debug.Log("<b>[Combat Arena]</b> Scena nie jest w pełni skonfigurowana. Budowanie kompletnej sceny z lochami i UI...");
             BuildFullCombatArenaScene();
         }
     }
@@ -222,24 +223,12 @@ public static class SetupTestSceneTool
 
         IsometricCameraFollow cameraFollow = cameraObj.AddComponent<IsometricCameraFollow>();
 
-        // 6. Generowanie teksturowanego podłoża i upieczenie NavMesha
-        GameObject groundObj = GameObject.CreatePrimitive(PrimitiveType.Plane);
-        groundObj.name = "Ground";
-        groundObj.transform.position = Vector3.zero;
-        groundObj.transform.localScale = new Vector3(6f, 1f, 6f); // 60x60m
-        groundObj.layer = groundLayerIndex;
-        groundObj.GetComponent<MeshRenderer>().sharedMaterial = groundMat;
-
-        NavMeshSurface navSurface = groundObj.AddComponent<NavMeshSurface>();
-        navSurface.layerMask = 1 << groundLayerIndex;
-        navSurface.BuildNavMesh();
-
-        // 7. Tworzenie Prefabów (Gracz, Wróg Goblin, Skrzynia)
+        // 6. Tworzenie Prefabów (Wrogowie i Skrzynia)
         GameObject enemyPrefab = CreateOrUpdateEnemyPrefab(goblinSprite, mainCam, enemiesLayerIndex);
         GameObject chestPrefab = CreateOrUpdateChestPrefab(chestSprite, mainCam);
 
-        // 8. Tworzenie Gracza na scenie
-        GameObject playerObj = CreatePlayerObject(new Vector3(0f, 0f, -12f), playerSprite, mainCam, enemiesLayerIndex);
+        // 7. Tworzenie Gracza na scenie z pełnym pakietem skryptów (ruch, walka, statystyki, życie IDamageable)
+        GameObject playerObj = CreatePlayerObject(new Vector3(0f, 0f, 0f), playerSprite, mainCam, enemiesLayerIndex);
         PrefabUtility.SaveAsPrefabAssetAndConnect(playerObj, PlayerPrefabPath, InteractionMode.AutomatedAction);
         PrefabUtility.SaveAsPrefabAsset(playerObj, ResourcesPlayerPrefabPath);
 
@@ -253,76 +242,44 @@ public static class SetupTestSceneTool
         soCam.ApplyModifiedProperties();
         cameraFollow.SnapToTarget();
 
-        // 9. Manekin testowy
-        CreateTrainingDummy(new Vector3(4f, 0f, -10f), dummySprite, mainCam, enemiesLayerIndex);
+        // 8. Utworzenie GameUIManager (Pasek zdrowia gracza i ekran Game Over z przyciskiem restartu)
+        GameObject uiManagerObj = new GameObject("GameUIManager");
+        GameUIManager uiManager = uiManagerObj.AddComponent<GameUIManager>();
+        uiManager.ConnectPlayer();
 
-        // 10. Budowa Areny, podłoża areny, ścieżki i otoczenia 2.5D (drzewa, skały, płoty)
-        BuildArenaEnvironment(out GameObject entranceGate, out GameObject exitGate, out Transform[] spawnPoints, out Transform chestSpawn, arenaFloorMat, pathMat, gateMat, wallMat, mainCam);
+        // 9. Utworzenie DungeonManager (Generator losowego rozstawu pomieszczeń bez blokujących bram/ścian)
+        GameObject dungeonObj = new GameObject("DungeonManager");
+        DungeonManager dungeonManager = dungeonObj.AddComponent<DungeonManager>();
 
-        // 11. Konfiguracja CombatZone
-        GameObject zoneObj = new GameObject("CombatZone_Arena");
-        zoneObj.transform.position = new Vector3(0f, 0f, 8f);
+        SerializedObject soDungeon = new SerializedObject(dungeonManager);
+        soDungeon.FindProperty("numberOfRooms").intValue = 5;
+        soDungeon.FindProperty("roomSize").floatValue = 18f;
+        soDungeon.FindProperty("corridorLength").floatValue = 10f;
+        soDungeon.FindProperty("corridorWidth").floatValue = 6f;
+        soDungeon.FindProperty("minEnemiesPerRoom").intValue = 2;
+        soDungeon.FindProperty("maxEnemiesPerRoom").intValue = 4;
+        soDungeon.FindProperty("startRoomMaterial").objectReferenceValue = groundMat;
+        soDungeon.FindProperty("combatRoomMaterial").objectReferenceValue = arenaFloorMat;
+        soDungeon.FindProperty("corridorMaterial").objectReferenceValue = pathMat;
+        soDungeon.FindProperty("wallMaterial").objectReferenceValue = wallMat;
+        soDungeon.FindProperty("enemyPrefab").objectReferenceValue = enemyPrefab;
+        soDungeon.FindProperty("chestPrefab").objectReferenceValue = chestPrefab;
+        soDungeon.ApplyModifiedProperties();
 
-        BoxCollider zoneTrigger = zoneObj.AddComponent<BoxCollider>();
-        zoneTrigger.isTrigger = true;
-        zoneTrigger.center = new Vector3(0f, 1.5f, -9f);
-        zoneTrigger.size = new Vector3(10f, 3f, 4f);
+        // Wygenerowanie układu pomieszczeń, wrogów i upieczenie NavMesha
+        dungeonManager.GenerateDungeon();
 
-        CombatZone combatZone = zoneObj.AddComponent<CombatZone>();
-        SerializedObject soZone = new SerializedObject(combatZone);
-
-        SerializedProperty entranceArray = soZone.FindProperty("entranceGates");
-        entranceArray.arraySize = 1;
-        entranceArray.GetArrayElementAtIndex(0).objectReferenceValue = entranceGate;
-
-        SerializedProperty exitArray = soZone.FindProperty("exitGates");
-        exitArray.arraySize = 1;
-        exitArray.GetArrayElementAtIndex(0).objectReferenceValue = exitGate;
-
-        SerializedProperty spawnArray = soZone.FindProperty("spawnPoints");
-        spawnArray.arraySize = spawnPoints.Length;
-        for (int i = 0; i < spawnPoints.Length; i++)
-        {
-            spawnArray.GetArrayElementAtIndex(i).objectReferenceValue = spawnPoints[i];
-        }
-
-        // Fale wrogów
-        SerializedProperty wavesProp = soZone.FindProperty("waves");
-        wavesProp.arraySize = 2;
-
-        SerializedProperty wave1 = wavesProp.GetArrayElementAtIndex(0);
-        wave1.FindPropertyRelative("waveName").stringValue = "Fala 1 (Zwiad)";
-        wave1.FindPropertyRelative("delayBeforeWave").floatValue = 1.0f;
-        wave1.FindPropertyRelative("delayBetweenEnemySpawns").floatValue = 0.4f;
-        SerializedProperty wave1Enemies = wave1.FindPropertyRelative("enemyPrefabs");
-        wave1Enemies.arraySize = 2;
-        wave1Enemies.GetArrayElementAtIndex(0).objectReferenceValue = enemyPrefab;
-        wave1Enemies.GetArrayElementAtIndex(1).objectReferenceValue = enemyPrefab;
-
-        SerializedProperty wave2 = wavesProp.GetArrayElementAtIndex(1);
-        wave2.FindPropertyRelative("waveName").stringValue = "Fala 2 (Posiłki)";
-        wave2.FindPropertyRelative("delayBeforeWave").floatValue = 1.5f;
-        wave2.FindPropertyRelative("delayBetweenEnemySpawns").floatValue = 0.35f;
-        SerializedProperty wave2Enemies = wave2.FindPropertyRelative("enemyPrefabs");
-        wave2Enemies.arraySize = 3;
-        wave2Enemies.GetArrayElementAtIndex(0).objectReferenceValue = enemyPrefab;
-        wave2Enemies.GetArrayElementAtIndex(1).objectReferenceValue = enemyPrefab;
-        wave2Enemies.GetArrayElementAtIndex(2).objectReferenceValue = enemyPrefab;
-
-        soZone.FindProperty("rewardChestPrefab").objectReferenceValue = chestPrefab;
-        soZone.FindProperty("chestSpawnPoint").objectReferenceValue = chestSpawn;
-
-        soZone.ApplyModifiedProperties();
-
-        // 12. Zapis sceny
+        // 10. Zapis sceny
         EditorSceneManager.MarkSceneDirty(activeScene);
         EditorSceneManager.SaveScene(activeScene);
 
         Selection.activeGameObject = playerObj;
 
-        Debug.Log("<b>[Combat Arena]</b> Zaktualizowano tło i otoczenie w oparciu o assety Kenney i Tiny RPG!\n" +
-                  "• <b>Tło:</b> Trawiaste kafelkowane podłoże (mapTile_022) + ubita arena (mapTile_082) + ścieżka (mapTile_017).\n" +
-                  "• <b>Otoczenie 2.5D:</b> Billboard drzewa (mapTile_115, mapTile_055), skały (mapTile_100), krzaki i płoty.\n" +
+        Debug.Log("<b>[Combat Dungeon]</b> Zbudowano scenę z losowymi pomieszczeniami!\n" +
+                  "• <b>Pokoje:</b> Losowy rozstaw 5 pomieszczeń połączonych otwartymi korytarzami (brak blokujących bram).\n" +
+                  "• <b>Wrogowie:</b> Po 2-4 przeciwników (Orc/Goblin) w każdym pokoju bojowym z upieczonym NavMeshem.\n" +
+                  "• <b>Życie Gracza:</b> Pasek zdrowia UI w lewym górnym rogu, otrzymywanie obrażeń od wrogów (IDamageable) i odrzut.\n" +
+                  "• <b>Koniec Gry:</b> Po spadku HP do 0 pojawia się plansza 'Koniec Gry' z przyciskiem 'Graj od nowa', który generuje świeży poziom.\n" +
                   "• <b>Postaci:</b> W pełni animowany Gracz (Soldier) i Wrogowie (Orc).");
     }
 
@@ -652,6 +609,9 @@ public static class SetupTestSceneTool
         soCombat.FindProperty("damageableLayers").intValue = (1 << 0) | (1 << enemyLayer);
         soCombat.ApplyModifiedProperties();
 
+        // Dodanie komponentu życia gracza i podatności na obrażenia
+        PlayerHealth health = playerObj.AddComponent<PlayerHealth>();
+
         return playerObj;
     }
 
@@ -700,7 +660,7 @@ public static class SetupTestSceneTool
         var animProp = soAI.FindProperty("animator");
         if (animProp != null) animProp.objectReferenceValue = anim;
         var hpProp = soAI.FindProperty("maxHealth");
-        if (hpProp != null) hpProp.floatValue = 50f;
+        if (hpProp != null) hpProp.floatValue = 75f;
         var detProp = soAI.FindProperty("detectionRadius");
         if (detProp != null) detProp.floatValue = 8f;
         var loseProp = soAI.FindProperty("loseTargetRadius");
@@ -713,7 +673,11 @@ public static class SetupTestSceneTool
         if (windProp != null) windProp.floatValue = 0.45f;
         soAI.ApplyModifiedProperties();
 
+        // Pływający pasek zdrowia nad wrogiem
+        tempObj.AddComponent<EnemyHealthBar>();
+
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(tempObj, EnemyPrefabPath);
+        PrefabUtility.SaveAsPrefabAsset(tempObj, ResourcesEnemyPrefabPath);
         Object.DestroyImmediate(tempObj);
         return prefab;
     }

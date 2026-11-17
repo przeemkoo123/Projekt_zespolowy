@@ -182,8 +182,10 @@ public static class CharacterAnimationSetupTool
         hurtState.motion = hurt;
         var toHurt = sm.AddAnyStateTransition(hurtState);
         toHurt.AddCondition(AnimatorConditionMode.If, 0, "IsStaggered");
+        toHurt.AddCondition(AnimatorConditionMode.IfNot, 0, "IsDead");
         toHurt.hasExitTime = false;
-        toHurt.duration = 0.02f;
+        toHurt.duration = 0f;
+        toHurt.canTransitionToSelf = false;
         var hurtBack = hurtState.AddTransition(idleState);
         hurtBack.hasExitTime = true;
         hurtBack.exitTime = 0.9f;
@@ -195,7 +197,8 @@ public static class CharacterAnimationSetupTool
         var toDeath = sm.AddAnyStateTransition(deathState);
         toDeath.AddCondition(AnimatorConditionMode.If, 0, "IsDead");
         toDeath.hasExitTime = false;
-        toDeath.duration = 0.02f;
+        toDeath.duration = 0f;
+        toDeath.canTransitionToSelf = false;
     }
 
     private static void AddAttackTransition(AnimatorStateMachine sm, AnimatorState returnState, string stateName, AnimationClip clip, int comboIndex)
@@ -206,8 +209,10 @@ public static class CharacterAnimationSetupTool
         var transition = sm.AddAnyStateTransition(atkState);
         transition.AddCondition(AnimatorConditionMode.If, 0, "Attack");
         transition.AddCondition(AnimatorConditionMode.Equals, comboIndex, "ComboStep");
+        transition.AddCondition(AnimatorConditionMode.IfNot, 0, "IsDead");
         transition.hasExitTime = false;
-        transition.duration = 0.02f;
+        transition.duration = 0f;
+        transition.canTransitionToSelf = false;
 
         var back = atkState.AddTransition(returnState);
         back.hasExitTime = true;
@@ -272,15 +277,8 @@ public static class CharacterAnimationSetupTool
         // Attack 1 (Cios mieczem)
         AnimatorState a1 = sm.AddState("Attack1");
         a1.motion = atk1;
-        var toA1 = sm.AddAnyStateTransition(a1);
-        toA1.AddCondition(AnimatorConditionMode.If, 0, "Attack");
-        toA1.hasExitTime = false;
-        toA1.duration = 0.02f;
-
-        var toSlash = sm.AddAnyStateTransition(a1);
-        toSlash.AddCondition(AnimatorConditionMode.If, 0, "Slash");
-        toSlash.hasExitTime = false;
-        toSlash.duration = 0.02f;
+        AddLivingAnyStateTrigger(sm, a1, "Attack");
+        AddLivingAnyStateTrigger(sm, a1, "Slash");
 
         var a1Back = a1.AddTransition(idleState);
         a1Back.hasExitTime = true;
@@ -290,15 +288,8 @@ public static class CharacterAnimationSetupTool
         // Attack 2 (Szarża / Ground Slam)
         AnimatorState a2 = sm.AddState("Attack2");
         a2.motion = atk2;
-        var toA2 = sm.AddAnyStateTransition(a2);
-        toA2.AddCondition(AnimatorConditionMode.If, 0, "Charge");
-        toA2.hasExitTime = false;
-        toA2.duration = 0.02f;
-
-        var toSlam = sm.AddAnyStateTransition(a2);
-        toSlam.AddCondition(AnimatorConditionMode.If, 0, "GroundSlam");
-        toSlam.hasExitTime = false;
-        toSlam.duration = 0.02f;
+        AddLivingAnyStateTrigger(sm, a2, "Charge");
+        AddLivingAnyStateTrigger(sm, a2, "GroundSlam");
 
         var a2Back = a2.AddTransition(idleState);
         a2Back.hasExitTime = true;
@@ -308,10 +299,7 @@ public static class CharacterAnimationSetupTool
         // Roar
         AnimatorState roarState = sm.AddState("Roar");
         roarState.motion = atk1;
-        var toRoar = sm.AddAnyStateTransition(roarState);
-        toRoar.AddCondition(AnimatorConditionMode.If, 0, "Roar");
-        toRoar.hasExitTime = false;
-        toRoar.duration = 0.02f;
+        AddLivingAnyStateTrigger(sm, roarState, "Roar");
         var roarBack = roarState.AddTransition(idleState);
         roarBack.hasExitTime = true;
         roarBack.exitTime = 0.95f;
@@ -320,10 +308,7 @@ public static class CharacterAnimationSetupTool
         // Hurt
         AnimatorState hurtState = sm.AddState("Hurt");
         hurtState.motion = hurt;
-        var toHurt = sm.AddAnyStateTransition(hurtState);
-        toHurt.AddCondition(AnimatorConditionMode.If, 0, "IsStaggered");
-        toHurt.hasExitTime = false;
-        toHurt.duration = 0.02f;
+        AddLivingAnyStateTrigger(sm, hurtState, "IsStaggered");
         var hurtBack = hurtState.AddTransition(idleState);
         hurtBack.hasExitTime = true;
         hurtBack.exitTime = 0.9f;
@@ -335,12 +320,24 @@ public static class CharacterAnimationSetupTool
         var toDeath = sm.AddAnyStateTransition(deathState);
         toDeath.AddCondition(AnimatorConditionMode.If, 0, "IsDead");
         toDeath.hasExitTime = false;
-        toDeath.duration = 0.02f;
+        toDeath.duration = 0f;
+        toDeath.canTransitionToSelf = false;
 
         var toDie = sm.AddAnyStateTransition(deathState);
         toDie.AddCondition(AnimatorConditionMode.If, 0, "Die");
         toDie.hasExitTime = false;
-        toDie.duration = 0.02f;
+        toDie.duration = 0f;
+        toDie.canTransitionToSelf = false;
+    }
+
+    private static void AddLivingAnyStateTrigger(AnimatorStateMachine sm, AnimatorState targetState, string triggerName)
+    {
+        var t = sm.AddAnyStateTransition(targetState);
+        t.AddCondition(AnimatorConditionMode.If, 0, triggerName);
+        t.AddCondition(AnimatorConditionMode.IfNot, 0, "IsDead");
+        t.hasExitTime = false;
+        t.duration = 0f;
+        t.canTransitionToSelf = false;
     }
 
     private static void UpdatePrefabs()
@@ -382,6 +379,10 @@ public static class CharacterAnimationSetupTool
             anim.runtimeAnimatorController = orcCtrl;
 
             PrefabUtility.SaveAsPrefabAsset(enemyRoot, EnemyPrefabPath);
+            if (File.Exists("Assets/Resources/Enemy_Goblin.prefab"))
+            {
+                PrefabUtility.SaveAsPrefabAsset(enemyRoot, "Assets/Resources/Enemy_Goblin.prefab");
+            }
             PrefabUtility.UnloadPrefabContents(enemyRoot);
         }
     }

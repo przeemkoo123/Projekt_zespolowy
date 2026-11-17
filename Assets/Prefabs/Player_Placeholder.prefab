@@ -151,6 +151,7 @@ GameObject:
   - component: {fileID: 1251907925814910966}
   - component: {fileID: 1577930548976101927}
   - component: {fileID: 3970917382543703912}
+  - component: {fileID: 155442297692086184}
   m_Layer: 0
   m_Name: Player_Placeholder
   m_TagString: Player
@@ -167,7 +168,7 @@ Transform:
   m_GameObject: {fileID: 7538500764572377008}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -12}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -285,3 +286,22 @@ MonoBehaviour:
   damageableLayers:
     serializedVersion: 2
     m_Bits: 129
+--- !u!114 &155442297692086184
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7538500764572377008}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1ebcc9c5325f10e51aefd5f0ba0dc63f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
+  maxHealth: 100
+  spriteRenderer: {fileID: 0}
+  animator: {fileID: 0}
+  playerMovement: {fileID: 0}
+  playerCombat: {fileID: 0}
+  damageFlashColor: {r: 1, g: 0.25, b: 0.25, a: 1}
+  damageFlashDuration: 0.15

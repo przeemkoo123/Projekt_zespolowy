@@ -124,7 +124,6 @@ public class BossController : MonoBehaviour, IDamageable
     private static readonly int AnimParamCharge = Animator.StringToHash("Charge");
     private static readonly int AnimParamSlam = Animator.StringToHash("GroundSlam");
     private static readonly int AnimParamRoar = Animator.StringToHash("Roar");
-    private static readonly int AnimParamDie = Animator.StringToHash("Die");
 
     #region Publiczne Właściwości
 
@@ -506,10 +505,13 @@ public class BossController : MonoBehaviour, IDamageable
     {
         if (spriteRenderer != null && currentActionState != BossActionState.PhaseTransition)
         {
-            Color prev = spriteRenderer.color;
+            Color prev = (currentPhase == BossPhase.Phase2) ? phase2Color : phase1Color;
             spriteRenderer.color = Color.white;
             yield return new WaitForSeconds(0.08f);
-            spriteRenderer.color = prev;
+            if (spriteRenderer != null && currentActionState != BossActionState.Dead)
+            {
+                spriteRenderer.color = prev;
+            }
         }
     }
 
@@ -522,8 +524,15 @@ public class BossController : MonoBehaviour, IDamageable
             StopCoroutine(mainCombatLoopRoutine);
         }
 
-        agent.isStopped = true;
-        agent.enabled = false;
+        if (agent != null)
+        {
+            if (agent.enabled && agent.isOnNavMesh)
+            {
+                agent.isStopped = true;
+                agent.ResetPath();
+            }
+            agent.enabled = false;
+        }
 
         if (bossCollider != null)
         {
@@ -532,13 +541,38 @@ public class BossController : MonoBehaviour, IDamageable
 
         HideChargeIndicator();
 
-        if (animator != null) animator.SetTrigger(AnimParamDie);
+        bool hasDeathClip = DeathAnimationHelper.TryTriggerDeathState(
+            animator, AnimParamSlash, AnimParamCharge, AnimParamSlam, AnimParamRoar);
 
         onBossDefeated?.Invoke();
         OnBossDefeated?.Invoke();
 
         Debug.Log($"<b>[BossController]</b> Boss {bossName} został pokonany!");
-        Destroy(gameObject, 3.5f);
+        StartCoroutine(BossDeathFadeRoutine(hasDeathClip));
+    }
+
+    private IEnumerator BossDeathFadeRoutine(bool hasDeathClip)
+    {
+        float totalDuration = 3.5f;
+        float fadeDuration = 0.8f;
+        float fadeStartTime = totalDuration - fadeDuration;
+
+        Color baseColor = (currentPhase == BossPhase.Phase2) ? phase2Color : phase1Color;
+        Transform visualTransform = spriteRenderer != null ? spriteRenderer.transform : transform;
+        Vector3 startScale = visualTransform.localScale;
+        DeathAnimationHelper.PrepareFallbackVisual(spriteRenderer, transform, hasDeathClip);
+
+        float elapsed = 0f;
+        while (elapsed < totalDuration)
+        {
+            elapsed += Time.deltaTime;
+            DeathAnimationHelper.UpdateVisualDeathFrame(
+                spriteRenderer, transform, startScale, baseColor, Color.white,
+                hasDeathClip, elapsed, 0.08f, fadeStartTime, fadeDuration);
+            yield return null;
+        }
+
+        Destroy(gameObject);
     }
 
     #endregion

@@ -80,6 +80,10 @@ public class PlayerMovement : MonoBehaviour
     private float iFrameTimer;
     private Vector3 dashDirection;
 
+    // Odrzut (Knockback)
+    private Vector3 knockbackVelocity;
+    private float knockbackDecay = 10f;
+
     // Hashe parametrów Animatora (optymalizacja wydajności)
     private int hashSpeed;
     private int hashIsMoving;
@@ -291,11 +295,35 @@ public class PlayerMovement : MonoBehaviour
             horizontalMove = moveDirection * (moveSpeed * rawInput.magnitude);
         }
 
+        // Zastosowanie impulsu odrzutu (Knockback)
+        if (knockbackVelocity.sqrMagnitude > 0.01f)
+        {
+            horizontalMove += knockbackVelocity;
+            knockbackVelocity = Vector3.Lerp(knockbackVelocity, Vector3.zero, knockbackDecay * Time.deltaTime);
+        }
+        else
+        {
+            knockbackVelocity = Vector3.zero;
+        }
+
         // Złożenie wektora prędkości poziomej i pionowej (grawitacji)
         Vector3 finalVelocity = horizontalMove + Vector3.up * verticalVelocity;
 
         // Przesunięcie przez CharacterController
         characterController.Move(finalVelocity * Time.deltaTime);
+    }
+
+    /// <summary>
+    /// Aplikuje impuls odrzutu (knockback) na postać gracza po otrzymaniu ciosu.
+    /// </summary>
+    public void ApplyKnockback(Vector3 direction, float force)
+    {
+        if (IsInvulnerable) return;
+        direction.y = 0f;
+        if (direction.sqrMagnitude > 0.001f)
+        {
+            knockbackVelocity = direction.normalized * force;
+        }
     }
 
     /// <summary>
@@ -367,6 +395,13 @@ public class PlayerMovement : MonoBehaviour
         dashTimer = 0f;
     }
 
+    // Flagi dostępności parametrów w Animatorze
+    private bool hasParamSpeed;
+    private bool hasParamIsMoving;
+    private bool hasParamIsDashing;
+    private bool hasParamInputX;
+    private bool hasParamInputY;
+
     /// <summary>
     /// Buforuje identyfikatory parametrów Animatora, co znacząco przyspiesza wywołania.
     /// </summary>
@@ -377,6 +412,18 @@ public class PlayerMovement : MonoBehaviour
         hashIsDashing = Animator.StringToHash(animParamIsDashing);
         hashInputX = Animator.StringToHash(animParamInputX);
         hashInputY = Animator.StringToHash(animParamInputY);
+
+        if (animator != null && animator.runtimeAnimatorController != null)
+        {
+            foreach (var p in animator.parameters)
+            {
+                if (p.nameHash == hashSpeed) hasParamSpeed = true;
+                if (p.nameHash == hashIsMoving) hasParamIsMoving = true;
+                if (p.nameHash == hashIsDashing) hasParamIsDashing = true;
+                if (p.nameHash == hashInputX) hasParamInputX = true;
+                if (p.nameHash == hashInputY) hasParamInputY = true;
+            }
+        }
     }
 
     /// <summary>
@@ -386,11 +433,11 @@ public class PlayerMovement : MonoBehaviour
     {
         if (!updateAnimatorParameters || animator == null) return;
 
-        animator.SetFloat(hashSpeed, currentSpeed);
-        animator.SetBool(hashIsMoving, IsMoving);
-        animator.SetBool(hashIsDashing, isDashing);
-        animator.SetFloat(hashInputX, rawInput.x);
-        animator.SetFloat(hashInputY, rawInput.y);
+        if (hasParamSpeed) animator.SetFloat(hashSpeed, currentSpeed);
+        if (hasParamIsMoving) animator.SetBool(hashIsMoving, IsMoving);
+        if (hasParamIsDashing) animator.SetBool(hashIsDashing, isDashing);
+        if (hasParamInputX) animator.SetFloat(hashInputX, rawInput.x);
+        if (hasParamInputY) animator.SetFloat(hashInputY, rawInput.y);
     }
 
     /// <summary>

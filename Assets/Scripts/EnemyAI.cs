@@ -28,7 +28,7 @@ public class EnemyAI : MonoBehaviour, IDamageable
     [SerializeField] private State currentState = State.Idle;
 
     [Header("Zdrowie")]
-    [SerializeField] private float maxHealth = 60f;
+    [SerializeField] private float maxHealth = 75f;
     private float currentHealth;
 
     [Header("Patrol i Spoczynek")]
@@ -80,11 +80,8 @@ public class EnemyAI : MonoBehaviour, IDamageable
     [Header("Wizualia i Sprite (2.5D)")]
     [SerializeField] private SpriteRenderer spriteRenderer;
 
-    [Tooltip("Kolor sygnalizacji ataku (wind-up) na spricie.")]
-    [SerializeField] private Color telegraphColor = new Color(1f, 0.35f, 0.2f, 1f);
-
-    [Tooltip("Kolor mignięcia po otrzymaniu ciosu.")]
-    [SerializeField] private Color hitFlashColor = Color.white;
+    [Tooltip("Kolor czerwonego mignięcia wyłącznie po otrzymaniu ciosu od gracza.")]
+    [SerializeField] private Color hitFlashColor = new Color(1f, 0.25f, 0.25f, 1f);
 
     [Tooltip("Odwraca domyślny kierunek flipX sprite'a.")]
     [SerializeField] private bool invertFlip = false;
@@ -106,6 +103,7 @@ public class EnemyAI : MonoBehaviour, IDamageable
     // Zdarzenia w kodzie C#
     public event Action<EnemyAI> OnDeath;
     public event Action<Vector3> OnEnemyDiedWithPosition;
+    public event Action<float, float> OnHealthChanged; // (currentHealth, maxHealth)
 
     // Komponenty wewnętrzne
     private NavMeshAgent agent;
@@ -121,6 +119,9 @@ public class EnemyAI : MonoBehaviour, IDamageable
     private float attackCooldownTimer;
     private Color originalColor = Color.white;
     private Coroutine activeActionRoutine;
+    private Coroutine deathRoutine;
+    private Vector3 deathKnockbackDir;
+    private float deathKnockbackForce;
 
     // Hashe Animatora
     private static readonly int AnimParamSpeed = Animator.StringToHash("Speed");
@@ -141,7 +142,10 @@ public class EnemyAI : MonoBehaviour, IDamageable
     {
         agent = GetComponent<NavMeshAgent>();
         enemyCollider = GetComponent<Collider>();
-        animator = GetComponentInChildren<Animator>();
+        if (animator == null)
+        {
+            animator = GetComponentInChildren<Animator>();
+        }
 
         if (spriteRenderer == null)
         {
@@ -151,6 +155,7 @@ public class EnemyAI : MonoBehaviour, IDamageable
         if (spriteRenderer != null)
         {
             originalColor = spriteRenderer.color;
+            if (originalColor.a <= 0.01f) originalColor.a = 1f;
         }
 
         // KLUCZOWE DLA 2.5D: wyłączamy obracanie obiektu przez agenta,
@@ -159,6 +164,14 @@ public class EnemyAI : MonoBehaviour, IDamageable
 
         currentHealth = maxHealth;
         spawnPosition = transform.position;
+
+        // Upewnij się, że wróg posiada pasek życia nad głową
+        if (GetComponentInChildren<EnemyHealthBar>() == null)
+        {
+            GameObject healthBarObj = new GameObject("HealthBar_Floating");
+            healthBarObj.transform.SetParent(transform, false);
+            healthBarObj.AddComponent<EnemyHealthBar>();
+        }
     }
 
     private void Start()
@@ -175,6 +188,19 @@ public class EnemyAI : MonoBehaviour, IDamageable
     private void Update()
     {
         if (currentState == State.Dead) return;
+
+        // Zabezpieczenie przed wypadnięciem pod mapę
+        if (transform.position.y < -3f)
+        {
+            if (agent != null && agent.isOnNavMesh)
+            {
+                agent.Warp(spawnPosition);
+            }
+            else
+            {
+                transform.position = spawnPosition;
+            }
+        }
 
         if (cameraTransform == null && Camera.main != null)
         {
@@ -217,12 +243,16 @@ public class EnemyAI : MonoBehaviour, IDamageable
     {
         if (currentState == State.Dead) return;
 
-        // Sprzątanie po poprzednim stanie
-        if (activeActionRoutine != null && (newState == State.Staggered || newState == State.Dead))
+        // Sprzątanie po poprzednim stanie i gwarancja przywrócenia naturalnego koloru
+        if (activeActionRoutine != null)
         {
             StopCoroutine(activeActionRoutine);
             activeActionRoutine = null;
-            if (spriteRenderer != null) spriteRenderer.color = originalColor;
+        }
+
+        if (spriteRenderer != null)
+        {
+            spriteRenderer.color = originalColor;
         }
 
         currentState = newState;
@@ -231,25 +261,37 @@ public class EnemyAI : MonoBehaviour, IDamageable
         switch (currentState)
         {
             case State.Idle:
-                agent.isStopped = true;
-                agent.ResetPath();
+                if (agent != null && agent.enabled && agent.isOnNavMesh)
+                {
+                    agent.isStopped = true;
+                    agent.ResetPath();
+                }
                 break;
 
             case State.Patrol:
-                agent.isStopped = false;
-                agent.speed = patrolSpeed;
-                SetRandomPatrolDestination();
+                if (agent != null && agent.enabled && agent.isOnNavMesh)
+                {
+                    agent.isStopped = false;
+                    agent.speed = patrolSpeed;
+                    SetRandomPatrolDestination();
+                }
                 break;
 
             case State.Chase:
-                agent.isStopped = false;
-                agent.speed = chaseSpeed;
+                if (agent != null && agent.enabled && agent.isOnNavMesh)
+                {
+                    agent.isStopped = false;
+                    agent.speed = chaseSpeed;
+                }
                 pathTimer = 0f; // natychmiastowe wyznaczenie trasy do gracza
                 break;
 
             case State.Attack:
-                agent.isStopped = true;
-                agent.ResetPath();
+                if (agent != null && agent.enabled && agent.isOnNavMesh)
+                {
+                    agent.isStopped = true;
+                    agent.ResetPath();
+                }
                 activeActionRoutine = StartCoroutine(AttackSequenceRoutine());
                 break;
 
@@ -372,22 +414,13 @@ public class EnemyAI : MonoBehaviour, IDamageable
 
     private IEnumerator AttackSequenceRoutine()
     {
-        // 1. FAZA WIND-UP (Sygnalizacja ataku / telegrafowanie)
-        if (spriteRenderer != null)
-        {
-            spriteRenderer.color = telegraphColor;
-        }
-
+        // 1. FAZA WIND-UP (Sygnalizacja ataku / przygotowanie zamachu)
+        // Sprite zachowuje naturalny kolor – wrogowie NIE świecą się na czerwono!
         yield return new WaitForSeconds(windUpDuration);
 
         if (currentState != State.Attack) yield break;
 
         // 2. FAZA CIOSU (Strike)
-        if (spriteRenderer != null)
-        {
-            spriteRenderer.color = originalColor;
-        }
-
         if (animator != null)
         {
             animator.SetTrigger(AnimParamAttack);
@@ -437,18 +470,26 @@ public class EnemyAI : MonoBehaviour, IDamageable
     {
         if (currentState == State.Dead) return;
 
-        currentHealth -= amount;
+        // Redukcja punktów życia
+        currentHealth = Mathf.Max(0f, currentHealth - amount);
+        OnHealthChanged?.Invoke(currentHealth, maxHealth);
 
+        Debug.Log($"<b>[EnemyAI]</b> {gameObject.name} otrzymał cios od gracza! Obrażenia: {amount:F1}. Pasek życia: {currentHealth:F1}/{maxHealth:F1}");
+
+        // Wróg ginie WYŁĄCZNIE gdy jego pasek życia spadnie do 0
         if (currentHealth <= 0f)
         {
+            deathKnockbackDir = knockbackDirection.sqrMagnitude > 0.001f ? knockbackDirection.normalized : Vector3.zero;
+            deathKnockbackForce = knockbackForce;
             ChangeState(State.Dead);
         }
         else
         {
-            // Przerwij obecny stan i przejdź w Stagger z odrzutem
+            // Przerwij obecny stan i przejdź w Stagger z odrzutem i czerwonym mignięciem
             if (activeActionRoutine != null)
             {
                 StopCoroutine(activeActionRoutine);
+                activeActionRoutine = null;
             }
             activeActionRoutine = StartCoroutine(StaggerAndKnockbackRoutine(knockbackDirection, knockbackForce));
         }
@@ -465,19 +506,27 @@ public class EnemyAI : MonoBehaviour, IDamageable
             animator.SetTrigger(AnimParamIsStaggered);
         }
 
-        // Mignięcie sprita po uderzeniu
+        // Czerwone mignięcie WYŁĄCZNIE po otrzymaniu ciosu od gracza
         if (spriteRenderer != null)
         {
             spriteRenderer.color = hitFlashColor;
         }
 
         float elapsed = 0f;
+        float flashDuration = 0.12f;
         float duration = staggerDuration;
 
         // Płynne przemieszczenie agenta w kierunku knockbacku (agent.Move respektuje granice NavMesha)
         while (elapsed < duration)
         {
             elapsed += Time.deltaTime;
+
+            // Przywrócenie naturalnego koloru po 0.12 sekundy
+            if (elapsed >= flashDuration && spriteRenderer != null && spriteRenderer.color != originalColor)
+            {
+                spriteRenderer.color = originalColor;
+            }
+
             float currentForce = Mathf.Lerp(knockbackForce, 0f, elapsed / duration);
 
             if (agent.isOnNavMesh && currentForce > 0.01f)
@@ -516,18 +565,19 @@ public class EnemyAI : MonoBehaviour, IDamageable
 
     private void HandleDeath()
     {
-        agent.isStopped = true;
-        agent.enabled = false;
+        if (agent != null && agent.enabled && agent.isOnNavMesh)
+        {
+            agent.isStopped = true;
+            agent.ResetPath();
+            agent.obstacleAvoidanceType = ObstacleAvoidanceType.NoObstacleAvoidance;
+        }
 
         if (enemyCollider != null)
         {
             enemyCollider.enabled = false;
         }
 
-        if (animator != null)
-        {
-            animator.SetBool(AnimParamIsDead, true);
-        }
+        bool hasDeathClipAnimation = DeathAnimationHelper.TryTriggerDeathState(animator, AnimParamAttack, AnimParamIsStaggered);
 
         // Wywołanie zdarzeń śmierci
         Vector3 deathPos = transform.position;
@@ -538,8 +588,90 @@ public class EnemyAI : MonoBehaviour, IDamageable
         // Wypadanie przedmiotów (Loot)
         SpawnLoot(deathPos);
 
-        // Usunięcie obiektu ze sceny z opóźnieniem
-        Destroy(gameObject, despawnDelay);
+        Debug.Log($"<b>[EnemyAI]</b> {gameObject.name} zginął! Odtwarzanie animacji śmierci i usunięcie za {Mathf.Max(despawnDelay, 1.25f):F2}s.");
+
+        if (deathRoutine != null)
+        {
+            StopCoroutine(deathRoutine);
+        }
+        deathRoutine = StartCoroutine(DeathSequenceRoutine(hasDeathClipAnimation));
+    }
+
+    private IEnumerator DeathSequenceRoutine(bool hasDeathClipAnimation)
+    {
+        float totalDuration = Mathf.Max(despawnDelay, 1.25f);
+        float fadeDuration = Mathf.Min(0.45f, totalDuration * 0.35f);
+        float fadeStartTime = totalDuration - fadeDuration;
+        float flashDuration = 0.08f;
+        float slideDuration = 0.14f;
+        bool agentDisabled = false;
+
+        Transform visualTransform = spriteRenderer != null ? spriteRenderer.transform : transform;
+        Vector3 startVisualScale = visualTransform.localScale;
+        DeathAnimationHelper.PrepareFallbackVisual(spriteRenderer, transform, hasDeathClipAnimation);
+
+        float elapsed = 0f;
+        while (elapsed < totalDuration)
+        {
+            elapsed += Time.deltaTime;
+
+            // Krótki śmiertelny odrzut na początku animacji upadku
+            if (elapsed <= slideDuration)
+            {
+                if (agent != null && agent.enabled && agent.isOnNavMesh && deathKnockbackDir.sqrMagnitude > 0.001f)
+                {
+                    float slideSpeed = Mathf.Lerp(Mathf.Min(deathKnockbackForce, 5.5f), 0f, elapsed / slideDuration);
+                    agent.Move(deathKnockbackDir * (slideSpeed * Time.deltaTime));
+                }
+            }
+            else if (!agentDisabled)
+            {
+                agentDisabled = true;
+                if (agent != null) agent.enabled = false;
+            }
+
+            DeathAnimationHelper.UpdateVisualDeathFrame(
+                spriteRenderer,
+                transform,
+                startVisualScale,
+                originalColor,
+                hitFlashColor,
+                hasDeathClipAnimation,
+                elapsed,
+                flashDuration,
+                fadeStartTime,
+                fadeDuration);
+
+            yield return null;
+        }
+
+        if (agent != null && agent.enabled) agent.enabled = false;
+        Destroy(gameObject);
+    }
+
+    /// <summary>
+    /// Resetuje stan zdrowia wroga do wartości maksymalnej (np. przy restarcie).
+    /// </summary>
+    public void ResetHealth()
+    {
+        if (deathRoutine != null)
+        {
+            StopCoroutine(deathRoutine);
+            deathRoutine = null;
+        }
+
+        currentHealth = maxHealth;
+        currentState = State.Idle;
+
+        if (enemyCollider != null) enemyCollider.enabled = true;
+        if (agent != null) agent.enabled = true;
+        if (animator != null) animator.SetBool(AnimParamIsDead, false);
+
+        OnHealthChanged?.Invoke(currentHealth, maxHealth);
+        if (spriteRenderer != null)
+        {
+            spriteRenderer.color = originalColor;
+        }
     }
 
     private void SpawnLoot(Vector3 position)
