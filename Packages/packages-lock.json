@@ -7,7 +7,7 @@
       "dependencies": {}
     },
     "com.unity.ai.assistant": {
-      "version": "2.21.0-pre.2",
+      "version": "2.21.0-pre.1",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -30,6 +30,15 @@
         "com.unity.collections": "2.4.3",
         "com.unity.nuget.newtonsoft-json": "3.2.1",
         "com.unity.modules.imageconversion": "1.0.0"
+      },
+      "url": "https://packages.unity.com"
+    },
+    "com.unity.ai.navigation": {
+      "version": "2.0.15",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.modules.ai": "1.0.0"
       },
       "url": "https://packages.unity.com"
     },
@@ -82,7 +91,7 @@
       "dependencies": {}
     },
     "com.unity.ide.rider": {
-      "version": "3.0.40",
+      "version": "3.0.38",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -91,7 +100,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.ide.visualstudio": {
-      "version": "2.0.28",
+      "version": "2.0.26",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -126,20 +135,6 @@
       "depth": 1,
       "source": "registry",
       "dependencies": {},
-      "url": "https://packages.unity.com"
-    },
-    "com.unity.pipeline": {
-      "version": "0.9.1-exp.1",
-      "depth": 0,
-      "source": "registry",
-      "dependencies": {
-        "com.unity.test-framework": "1.1.33",
-        "com.unity.nuget.mono-cecil": "1.11.6",
-        "com.unity.modules.uielements": "1.0.0",
-        "com.unity.modules.jsonserialize": "1.0.0",
-        "com.unity.modules.screencapture": "1.0.0",
-        "com.unity.nuget.newtonsoft-json": "3.0.2"
-      },
       "url": "https://packages.unity.com"
     },
     "com.unity.profiling.core": {
@@ -178,6 +173,24 @@
         "com.unity.render-pipelines.core": "17.6.0"
       }
     },
+    "com.unity.sdk.linux-arm64": {
+      "version": "1.1.1",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.sysroot.base": "1.1.1"
+      },
+      "url": "https://packages.unity.com"
+    },
+    "com.unity.sdk.linux-x86_64": {
+      "version": "1.1.1",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.sysroot.base": "1.1.1"
+      },
+      "url": "https://packages.unity.com"
+    },
     "com.unity.searcher": {
       "version": "4.9.5",
       "depth": 2,
@@ -195,9 +208,16 @@
         "com.unity.graph-authoring": "1.0.0"
       }
     },
+    "com.unity.sysroot.base": {
+      "version": "1.1.1",
+      "depth": 1,
+      "source": "registry",
+      "dependencies": {},
+      "url": "https://packages.unity.com"
+    },
     "com.unity.test-framework": {
       "version": "1.8.0",
-      "depth": 1,
+      "depth": 0,
       "source": "builtin",
       "dependencies": {
         "com.unity.ext.nunit": "2.1.0",
@@ -214,6 +234,26 @@
         "com.unity.modules.jsonserialize": "1.0.0"
       }
     },
+    "com.unity.timeline": {
+      "version": "6.6.0",
+      "depth": 0,
+      "source": "builtin",
+      "dependencies": {
+        "com.unity.modules.director": "1.0.0",
+        "com.unity.modules.animation": "1.0.0",
+        "com.unity.modules.audio": "1.0.0",
+        "com.unity.modules.particlesystem": "1.0.0"
+      }
+    },
+    "com.unity.toolchain.linux-x86_64-linux": {
+      "version": "1.1.1",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.sysroot.base": "1.1.1"
+      },
+      "url": "https://packages.unity.com"
+    },
     "com.unity.ugui": {
       "version": "2.6.0",
       "depth": 0,
@@ -225,6 +265,16 @@
         "com.unity.modules.physics2d": "1.0.0",
         "com.unity.modules.physics": "1.0.0"
       }
+    },
+    "com.unity.visualscripting": {
+      "version": "1.9.12",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.ugui": "2.0.0",
+        "com.unity.modules.jsonserialize": "1.0.0"
+      },
+      "url": "https://packages.unity.com"
     },
     "com.unity.modules.accessibility": {
       "version": "1.0.0",
